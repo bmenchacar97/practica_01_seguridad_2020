@@ -1,0 +1,153 @@
+#!/bin/bash
+
+#Mariana Lezama
+#Benjamín Menchaca
+
+#Ejecución completa: $ ./ logtime −u <user> −f <file.txt>
+#Ejecución parcial:	$ ./ logtime −f <file.txt>
+#Panel de ayuda: 		$ ./ logtime −h
+
+gCol="\e[0;32m\033[1m"
+rCol="\e[0;31m\033[1m"
+bCol="\e[0;34m\033[1m"
+yCol="\e[0;33m\033[1m"
+pCol="\e[0;35m\033[1m"
+tCol="\e[0;36m\033[1m"
+eCol="\033[0m\e[0m"
+
+echo -e "\n${rCol}Reporte de sesiones${eCol}\n"
+
+trap ctr_c INT
+
+function ctr_c(){
+
+	echo -e "${yCol}Saliendo ->${eCol}"
+}
+
+function helpPanel(){
+
+	echo -e "${yCol}Panel de ayuda${eCol}"
+	echo -e "Estas son las 2 formas de ingresar los argumentos y las opciones:\n"
+	echo -e "[*] Ejecucion completa:${rCol} $./logtime ~u <user> ~f <file.txt>${eCol}"
+	echo -e "[*] Ejecucion parcial:${rCol} $./logtime ~f <file.txt>${eCol}"
+	echo -e "\n${gCol}CTRL + C${eCol} para salir"
+
+	exit 0
+}
+
+function logTime(){
+
+	# echo "logTime"
+	list=$(awk '{printf ("%s\n", $1);}' $files)
+	list_uniq=$(echo "${list[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+
+	# echo $list_uniq
+	 echo $list_uniq > historial_uniq.txt
+
+	for user in $list_uniq
+	do
+		logTime_user
+	done
+}
+
+function logTime_user(){
+
+	# echo "logTime_user"
+	echo "---------------------------------------"
+	echo -e "\n[*]Usuario:${tCol} $user ${eCol}\n[*]Archivo: ${tCol}$files ${eCol}\n"
+	echo -e "\n${yCol}CTRL + C${eCol} para salir"
+	echo -e "${gCol}El proceso puede tomar unos segundos${eCol}\nTiempo total activo: "
+
+	list=$(awk '{printf ("%s-%s\n", $1,$10);}' $files)
+
+	# echo $list > historial.txt
+
+	horas_parciales=0;
+	minutos_parciales=0;
+	horas_totales=0;
+	minutos_totales=0;
+	re='^[0-9]+$'
+
+	for line in $list
+	do
+		if [[ "$line" == *"$user"* ]]; then
+
+			if [[ "$user" == *"reboot"* ]]; then
+				echo -e "\n\n${gCol}EL PROCESO HA TERMINADO EXITOSAMENTE!${eCol}\n\n"
+				return 1;
+			fi
+
+			# echo $line | cut -b 1-8
+			# str_usuario=$(echo "$line" | cut -d- -f1)
+			str_tiempo=$(echo "$line" | cut -d- -f2)
+
+			# echo "mm:"
+			# echo "$str_tiempo" |cut -b 5-6
+
+			minutos_parciales=$(echo "$str_tiempo" |cut -b 5-6)
+			minutos_parciales=$((10#$minutos_parciales))
+
+			if ! [[ $minutos_parciales =~ $re ]] ; then
+
+				echo -e "${rCol}Existen caracteres raros: $files ${eCol}"
+				echo -e "${pCol}No nos aguitamos, la fiesta continua! ${eCol}"
+				echo -e "${gCol}El proceso puede tomar unos segundos${eCol}\nCalculando tiempo"
+			else
+
+				minutos_totales=$(($minutos_totales + $minutos_parciales))
+			fi
+
+			#echo "hh:"
+			#echo "$str_tiempo" |cut -b 2-3  
+
+
+			horas_parciales=$(echo "$str_tiempo" |cut -b 2-3)
+			# horas_parciales=$((10#$horas_parciales)+1)
+			horas_parciales=${horas_parciales#0}
+			if ! [[ $horas_parciales =~ $re ]] ; then
+
+				echo -e "${rCol}Existe una letra en la lectura de un entero: $files ${eCol}"
+				echo -e "${pCol}No nos aguitamos, la fiesta continua! ${eCol}"
+				echo -e "${gCol}El proceso puede tomar unos segundos${eCol}\nCalculando tiempo "
+			else
+
+				horas_totales=$(($horas_totales + $horas_parciales))
+			fi
+
+		fi
+	done
+
+	while [[ $minutos_totales -gt 60 ]]; do
+		minutos_totales=$(($minutos_totales - 60))
+		horas_totales=$(($horas_totales + 1))
+	done
+
+	if [[ $horas_totales -gt 9 ]]; then
+
+		echo -e "${tCol}"$horas_totales:$minutos_totales:00"${eCol}"
+	else
+		echo -e "${tCol}"0$horas_totales:$minutos_totales:00"${eCol}"
+	fi
+	
+}
+
+#main
+declare -i contador_param=0; while getopts ":u:f:h" arg; do
+	case $arg in
+		u) user=$OPTARG; let contador_param+=1 ;;
+		f) files=$OPTARG; let contador_param+=1 ;;
+		h) helpPanel;;
+	esac
+done
+
+if [[ $contador_param -eq 1 ]]; then
+	logTime
+fi
+
+if [[ $contador_param -eq 2 ]]; then
+	logTime_user
+fi
+
+if [[ $contador_param -eq 0 ]]; then
+	helpPanel
+fi
